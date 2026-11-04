@@ -1,0 +1,9 @@
+{
+	"id": "arc-hover-sidebar",
+	"name": "ARC Hover Sidebar",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "像 ARC 浏览器一样：鼠标扫到窗口左边缘即滑出功能区与侧边栏，鼠标移出窗口仍保持展开，只有横向越过面板右边界才收回。",
+	"author": "local",
+	"isDesktopOnly": true
+}
