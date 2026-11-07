@@ -4,6 +4,8 @@ const DEFAULTS = {
 	// 统一开合方式：侧栏无论怎么打开的，都由本插件接管
 	// （鼠标划到左边缘打开，横向划出右边界关闭）
 	takeover: false,
+	// 同步功能区：功能区随侧边栏一起显隐（同时隐藏、同时展开）
+	syncRibbon: false,
 };
 
 module.exports = class ArcHoverSidebar extends Plugin {
@@ -41,6 +43,7 @@ module.exports = class ArcHoverSidebar extends Plugin {
 		this.armed = false;
 
 		this.injectStyles();
+		this.applyRibbonState();
 
 		this.registerDomEvent(document, 'mousemove', (e) => this.handleMove(e));
 		// 正在拖动侧栏宽度时不要收起，否则根本没法调整宽度
@@ -113,8 +116,49 @@ module.exports = class ArcHoverSidebar extends Plugin {
 body:not(.is-mobile) {
   --hover-sidedock-trigger-area: ${this.ribbonTrigger}px;
 }
+/* 同步功能区：功能区的 is-collapsed 类由 Obsidian 在侧栏收起/展开时
+   同步设置（leftRibbon.setCollapsedState），所以直接跟随它即可，
+   不需要逐帧监听。动画参数与 Obsidian 侧栏保持一致（140ms / swing），
+   这样两者看起来是同时展开、同时收起。 */
+body.arc-sync-ribbon .workspace-ribbon.mod-primary {
+  transition:
+    width 140ms var(--anim-motion-swing),
+    flex-basis 140ms var(--anim-motion-swing),
+    padding 140ms var(--anim-motion-swing),
+    border-inline-end-width 140ms var(--anim-motion-swing) !important;
+  overflow: hidden;
+}
+/* 收起时宽度归零。内边距和边框也要一并去掉，
+   否则会残留一条细边（box-sizing 下 padding 会撑出宽度）。 */
+body.arc-sync-ribbon .workspace-ribbon.mod-primary.is-collapsed {
+  width: 0 !important;
+  flex: 0 0 0 !important;
+  padding: 0 !important;
+  border-inline-end-width: 0 !important;
+}
+/* 功能区收起后，Obsidian 仍按 --ribbon-width（44px）计算给 macOS 交通灯
+   让位的空间（--frame-left-space: 80px - ribbon 宽），
+   于是「打开侧边栏」按钮会压在交通灯上。
+   这里把 --ribbon-width 一并归零，和 Obsidian 原生隐藏功能区时的布局一致，
+   让按钮回到交通灯右侧。 */
+body.arc-sync-ribbon:has(.workspace-ribbon.mod-primary.is-collapsed) {
+  --ribbon-width: 0px;
+}
+/* --ribbon-width 变化会让标签栏头部的内边距跳变，
+   补一个过渡，避免按钮在展开/收起瞬间瞬移 */
+body.arc-sync-ribbon .workspace-tab-header-container {
+  transition: padding-inline-start 140ms var(--anim-motion-swing);
+}
 `;
 		document.head.appendChild(this.styleEl);
+	}
+
+	// 功能区（左侧图标栏）的显隐。
+	// 功能区没有官方 API 能单独控制（Obsidian 只提供全局的「显示功能区」配置），
+	// 但 Obsidian 会在侧栏收起/展开时同步给功能区加/减 is-collapsed 类，
+	// 显隐逻辑交给 CSS 跟随该类即可，插件只需开关一个 body 上的标记。
+	applyRibbonState() {
+		document.body.classList.toggle('arc-sync-ribbon', !!this.settings.syncRibbon);
 	}
 
 	removeStyles() {
@@ -122,6 +166,8 @@ body:not(.is-mobile) {
 			this.styleEl.remove();
 			this.styleEl = null;
 		}
+		// 别把「同步功能区」的状态留给下一次启动
+		document.body.classList.remove('arc-sync-ribbon');
 	}
 
 	handleMove(e) {
@@ -273,6 +319,20 @@ class ArcHoverSidebarSettingTab extends PluginSettingTab {
 				toggle.setValue(this.plugin.settings.takeover).onChange(async (value) => {
 					this.plugin.settings.takeover = value;
 					await this.plugin.saveSettings();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName('同步功能区')
+			.setDesc(
+				'开启后，功能区（左侧图标栏）与侧边栏同时隐藏、同时展开：' +
+					'侧边栏收起时功能区一并隐藏，鼠标划到左边缘展开侧边栏时功能区也一起出现。'
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.syncRibbon).onChange(async (value) => {
+					this.plugin.settings.syncRibbon = value;
+					await this.plugin.saveSettings();
+					this.plugin.applyRibbonState();
 				})
 			);
 	}
