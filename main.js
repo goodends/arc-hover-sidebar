@@ -170,12 +170,25 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		document.body.classList.remove('arc-sync-ribbon');
 	}
 
+	// 是否有弹窗（模态窗口）正处于打开状态。
+	// 命令面板、快速切换、设置页面等在 Obsidian 里都以 .modal-container 呈现。
+	modalOpen() {
+		return !!document.querySelector('.modal-container');
+	}
+
 	handleMove(e) {
 		const x = e.clientX;
 		const split = this.app.workspace.leftSplit;
 
 		// 布局尚未就绪时 leftSplit 还不存在
 		if (!split) return;
+
+		// 有弹窗在前台时，取消悬停展开的效果：不再展开。
+		// 已经打开的侧栏保持原样，不去动它。
+		if (this.modalOpen()) {
+			this.prevX = null;
+			return;
+		}
 
 		// 正在拖动侧栏宽度：保持展开，让用户能自由调整
 		if (this.dragging) {
