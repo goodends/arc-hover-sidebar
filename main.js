@@ -1,6 +1,8 @@
 const { Plugin, PluginSettingTab, Setting } = require('obsidian');
 
 const DEFAULTS = {
+	// 总开关：关闭后插件完全不再干预侧边栏
+	enabled: true,
 	// 统一开合方式：侧栏无论怎么打开的，都由本插件接管
 	// （鼠标划到左边缘打开，横向划出右边界关闭）
 	takeover: false,
@@ -91,7 +93,10 @@ module.exports = class ArcHoverSidebar extends Plugin {
 		// 切到别的软件（Cmd+Tab）时把侧边栏收回去，切回来时也保持收起。
 		// blur 是窗口级事件，focus 时清空指针状态，
 		// 避免切回来后鼠标正好停在左边缘时误判成「划入热区」。
-		this.registerDomEvent(window, 'blur', () => this.collapseAll());
+		this.registerDomEvent(window, 'blur', () => {
+			if (!this.settings.enabled) return;
+			this.collapseAll();
+		});
 		this.registerDomEvent(window, 'focus', () => {
 			this.prevX = null;
 		});
@@ -152,6 +157,13 @@ module.exports = class ArcHoverSidebar extends Plugin {
 body:not(.is-mobile) {
   --hover-sidedock-trigger-area: ${this.ribbonTrigger}px;
 }
+/* 总开关关闭时，下面的子选项置灰且不可点击。
+   Obsidian 自带的 setDisabled() 只加一个 is-disabled 类，
+   在部分主题下既不置灰、也不阻止点击，这里自己实现一份。 */
+.arc-hover-sidebar-settings .setting-item.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
 /* 同步功能区：功能区的 is-collapsed 类由 Obsidian 在侧栏收起/展开时
    同步设置（leftRibbon.setCollapsedState），所以直接跟随它即可，
    不需要逐帧监听。动画参数与 Obsidian 侧栏保持一致（140ms / swing），
@@ -194,7 +206,28 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 	// 但 Obsidian 会在侧栏收起/展开时同步给功能区加/减 is-collapsed 类，
 	// 显隐逻辑交给 CSS 跟随该类即可，插件只需开关一个 body 上的标记。
 	applyRibbonState() {
-		document.body.classList.toggle('arc-sync-ribbon', !!this.settings.syncRibbon);
+		const on = this.settings.enabled && this.settings.syncRibbon;
+		document.body.classList.toggle('arc-sync-ribbon', !!on);
+	}
+
+	// 总开关切换。
+	// 关闭时把插件留下的状态复原：功能区恢复显示、
+	// 交互状态清空，不再接管侧边栏。
+	setEnabled(value) {
+		this.settings.enabled = value;
+		this.applyRibbonState();
+		const split = this.app.workspace && this.app.workspace.leftSplit;
+		// 是插件展开的就收回去，恢复成「没人动过」的样子
+		if (!value && this.expandedByUs && split) {
+			split.collapse();
+		}
+		this.pinned = false;
+		this.expandedByUs = false;
+		this.byHover = false;
+		this.armed = false;
+		this.pointerSide = null;
+		this.prevX = null;
+		this.justEntered = false;
 	}
 
 	removeStyles() {
@@ -229,6 +262,9 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 	handleMove(e) {
 		const x = e.clientX;
 		const split = this.app.workspace.leftSplit;
+
+		// 总开关关闭：完全不干预侧边栏
+		if (!this.settings.enabled) return;
 
 		// 布局尚未就绪时 leftSplit 还不存在
 		if (!split) return;
@@ -319,6 +355,9 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		if (collapsed === this.lastCollapsed) return;
 		this.lastCollapsed = collapsed;
 
+		// 总开关关闭：不接管任何状态
+		if (!this.settings.enabled) return;
+
 		if (this.pinned && this.expandedByUs && collapsed) {
 			// 我们展开的侧栏被关掉了（用户主动关）→ 交还控制权
 			this.pinned = false;
@@ -388,6 +427,21 @@ class ArcHoverSidebarSettingTab extends PluginSettingTab {
 	display() {
 		const { containerEl } = this;
 		containerEl.empty();
+		// 标记一下，供注入的 CSS 定位本插件的设置项
+		containerEl.classList.add('arc-hover-sidebar-settings');
+
+		const enabled = this.plugin.settings.enabled;
+
+		new Setting(containerEl)
+			.setName('启用悬停侧栏')
+			.setDesc('总开关。关闭后本插件完全不再干预侧边栏：不会悬停展开，也不会在切换到其他软件时收起。')
+			.addToggle((toggle) =>
+				toggle.setValue(enabled).onChange(async (value) => {
+					this.plugin.setEnabled(value);
+					await this.plugin.saveSettings();
+					this.display();
+				})
+			);
 
 		new Setting(containerEl)
 			.setName('统一开合方式')
@@ -396,8 +450,14 @@ class ArcHoverSidebarSettingTab extends PluginSettingTab {
 					'关闭方式都统一为「鼠标横向划出侧栏右边界」。关闭时则保持现状：' +
 					'你手动打开的侧栏不会被自动收起。'
 			)
+			.setDisabled(!enabled)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.takeover).onChange(async (value) => {
+					// 总开关关闭时不允许改动（鼠标点不到，这里防键盘操作）
+					if (!this.plugin.settings.enabled) {
+						toggle.setValue(this.plugin.settings.takeover);
+						return;
+					}
 					this.plugin.settings.takeover = value;
 					await this.plugin.saveSettings();
 					// 开启后侧边栏统一由本插件管理，
@@ -414,8 +474,13 @@ class ArcHoverSidebarSettingTab extends PluginSettingTab {
 				'开启后，功能区（左侧图标栏）与侧边栏同时隐藏、同时展开：' +
 					'侧边栏收起时功能区一并隐藏，鼠标划到左边缘展开侧边栏时功能区也一起出现。'
 			)
+			.setDisabled(!enabled)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.syncRibbon).onChange(async (value) => {
+					if (!this.plugin.settings.enabled) {
+						toggle.setValue(this.plugin.settings.syncRibbon);
+						return;
+					}
 					this.plugin.settings.syncRibbon = value;
 					await this.plugin.saveSettings();
 					this.plugin.applyRibbonState();
