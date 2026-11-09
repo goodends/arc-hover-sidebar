@@ -6,8 +6,8 @@
 
 | 侧栏怎么打开的 | 怎么关闭 |
 | --- | --- |
-| 鼠标划到窗口左边缘（40px 内）自动滑出 | 鼠标横向越过侧栏右边界即收起 |
-| 快捷键 / 按钮手动打开，且「统一开合方式」开着 | 滑到侧栏上、再滑出去才关闭（鼠标在侧栏外可自由活动） |
+| 鼠标划到窗口左边缘（`edgeZone` 内，默认 5px）自动滑出 | 鼠标横向越过侧栏右边界即收起 |
+| 快捷键 / 按钮手动打开，且「统一开合方式」开着 | 鼠标滑到侧栏上后再滑出去才关闭（鼠标在侧栏外可自由活动，不会一动就收起） |
 | 快捷键 / 按钮手动打开，「统一开合方式」关着 | 不自动关，由你自己关 |
 
 侧栏用 Obsidian 原生 `leftSplit.expand()` / `collapse()` 展开收起 —— 不是 CSS 伪装，所以宽度、配色、内容布局和你手动打开时完全一致。
@@ -16,27 +16,28 @@
 
 ## 安装
 
-代码在 `~/Code/obsidian-arc-sidebar/`，Obsidian 里通过软链接加载：
+手动安装：
 
-```bash
-cd ~/Workspace/.obsidian/plugins/arc-hover-sidebar
-ln -s ~/Code/obsidian-arc-sidebar/main.js main.js
-ln -s ~/Code/obsidian-arc-sidebar/manifest.json manifest.json
-```
+1. 下载本仓库的 `main.js` 与 `manifest.json`；
+2. 放进你的 vault 里的 `<vault>/.obsidian/plugins/arc-hover-sidebar/`；
+3. 在 vault 的 `.obsidian/community-plugins.json` 里加入 `"arc-hover-sidebar"`；
+4. 重新加载 Obsidian，在「设置 → 第三方插件」中启用它。
 
-并在 `~/Workspace/.obsidian/community-plugins.json` 里登记 `arc-hover-sidebar`。
+也可以用 [BRAT](https://github.com/TomG777/obsidian-brat) 安装：在 BRAT 里添加 `https://github.com/goodends/arc-hover-sidebar`。
 
 ## 设置
 
 设置 → 第三方插件 → ARC Hover Sidebar：
 
-- **统一开合方式** —— 开启后，用户自己打开的侧栏也由插件接管（关闭方式统一为「滑到侧栏上再滑出」）。
+- **启用悬停侧栏** —— 总开关。关闭后插件完全不再干预侧边栏。
+- **统一开合方式** —— 开启后，用户自己打开的侧栏也由插件接管，关闭方式统一为「横向划出侧栏右边界」。
+- **同步功能区** —— 开启后，功能区（左侧图标栏）与侧边栏同时隐藏、同时展开。
 
 ## 可调参数（`main.js` 顶部与 getter）
 
 | 参数 | 默认 | 含义 |
 | --- | --- | --- |
-| `edgeZone` | 40px | 侧栏边缘触发区宽度 |
+| `edgeZone` | 5px | 侧栏边缘触发区宽度 |
 | `ribbonTrigger` | 24px | 功能区触发带宽度（覆盖主题的 `--hover-sidedock-trigger-area`） |
 | `panelRight()` | 右边界 +12px | 判定「鼠标已滑出侧栏」的阈值，留 12px 余量方便拖拽把手 |
 
@@ -49,13 +50,20 @@ ln -s ~/Code/obsidian-arc-sidebar/manifest.json manifest.json
 - **冷启动保护**：`leftSplit` 在布局就绪前不存在，`onload` 里不能直接读 `.collapsed`，否则插件加载失败。
 - **轮询兜底**：`expand()` / `collapse()` 是异步生效的，展开完成前后可能不再有事件，用 400ms 轮询保证状态同步。
 - **拖拽保护**：拖动侧栏宽度把手期间不收起，否则宽度根本调不了。
+- **失焦保护**：窗口切到别的软件时收起侧栏，失焦期间不再响应悬停展开。
 
 ## 已知取舍
 
-- 侧栏热区 40px 意味着鼠标只要在窗口左侧 40px 内移动就会弹出侧栏。如果只是想去点功能区图标，侧栏会跟着冒出来 —— 调小 `edgeZone` 即可。
+- 热区意味着鼠标只要在窗口左侧 `edgeZone` 内移动就会弹出侧栏。如果只是想去点功能区图标，侧栏会跟着冒出来 —— 调小 `edgeZone` 即可。
 - 触发区变大后，鼠标在左侧快速划过更容易误触发：这是热区与灵敏度之间的权衡。
+- 仅桌面端可用（`isDesktopOnly: true`）。
 
-## 相关
+## 开发
 
-- 主题 Cupertino 的本地副本在 `~/Workspace/.obsidian/themes/Cupertino/`，**保持原版未改**。
-- 知识库侧的项目笔记：`~/Workspace/Projects/obsidian-arc-sidebar/README.md`
+没有构建步骤，`main.js` 就是全部逻辑。本地开发时把仓库里的 `main.js` / `manifest.json` 软链接到 `<vault>/.obsidian/plugins/arc-hover-sidebar/` 即可，改完在 Obsidian 里 disable → enable 插件生效。
+
+开发约定见 [CLAUDE.md](CLAUDE.md)。
+
+## 许可证
+
+[MIT](LICENSE)
