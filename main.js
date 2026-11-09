@@ -68,6 +68,11 @@ module.exports = class ArcHoverSidebar extends Plugin {
 		// 上一次鼠标轨迹的残留坐标，方向会判断错。
 		this.pointerInside = true;
 		this.justEntered = false;
+		// 窗口是否处于焦点状态。
+		// 切到别的软件时，指针离开窗口会触发 mouseleave，
+		// 而 mouseleave 里的补判会展开侧栏 —— 必须在失焦时禁掉，
+		// 否则会覆盖 blur 里的收起动作，切回来时侧栏是展开的。
+		this.focused = document.hasFocus();
 		this.registerDomEvent(document, 'mouseleave', (e) => {
 			this.pointerInside = false;
 			// 滑动太快时，指针可能一帧内穿过整个热区直接滑出窗口，
@@ -75,6 +80,7 @@ module.exports = class ArcHoverSidebar extends Plugin {
 			// 这里用 mouseleave 自带的坐标补判一次：
 			// 从左边缘滑出（clientX <= edgeZone）且此前在向左移动 → 视为划过热区。
 			if (
+				this.focused &&
 				this.prevX !== null &&
 				e.clientX <= this.edgeZone &&
 				this.prevX > e.clientX
@@ -94,10 +100,12 @@ module.exports = class ArcHoverSidebar extends Plugin {
 		// blur 是窗口级事件，focus 时清空指针状态，
 		// 避免切回来后鼠标正好停在左边缘时误判成「划入热区」。
 		this.registerDomEvent(window, 'blur', () => {
+			this.focused = false;
 			if (!this.settings.enabled) return;
 			this.collapseAll();
 		});
 		this.registerDomEvent(window, 'focus', () => {
+			this.focused = true;
 			this.prevX = null;
 		});
 		// expand()/collapse() 是异步生效的，展开完成前后可能不再有事件，
@@ -251,6 +259,9 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		if (!split || this.pinned) return;
 		// 用户自己打开的侧栏不接管
 		if (!split.collapsed) return;
+		// 窗口失焦时不能展开：失焦时 mousemove 依然会派发，
+		// 展开会覆盖 blur 里的收起动作，切回来时侧栏就是展开的。
+		if (!this.focused) return;
 		this.pinned = true;
 		this.expandedByUs = true;
 		this.byHover = true;
