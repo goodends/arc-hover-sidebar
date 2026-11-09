@@ -1,69 +1,74 @@
 # ARC Hover Sidebar
 
-给 Obsidian 做一个像 ARC 浏览器那样的侧边栏：**鼠标扫到窗口左边缘，侧栏滑出；往右划走，侧栏收回。**
+An ARC-browser-style sidebar for Obsidian: **sweep the mouse to the left edge of the window and the sidebar slides out; swipe right and it slides back.**
 
-## 它做什么
+[中文文档](README.zh-CN.md)
 
-| 侧栏怎么打开的 | 怎么关闭 |
+## What it does
+
+| How the sidebar was opened | How it closes |
 | --- | --- |
-| 鼠标划到窗口左边缘（`edgeZone` 内，默认 5px）自动滑出 | 鼠标横向越过侧栏右边界即收起 |
-| 快捷键 / 按钮手动打开，且「统一开合方式」开着 | 鼠标滑到侧栏上后再滑出去才关闭（鼠标在侧栏外可自由活动，不会一动就收起） |
-| 快捷键 / 按钮手动打开，「统一开合方式」关着 | 不自动关，由你自己关 |
+| Mouse touches the left edge of the window (within `edgeZone`, 5px by default) | The mouse moves horizontally past the sidebar's right edge |
+| Opened manually via hotkey / button, with **Unified open/close** enabled | The mouse moves onto the sidebar and then back out again (while the pointer stays outside the sidebar, you can move freely without it closing) |
+| Opened manually via hotkey / button, with **Unified open/close** disabled | It is not closed automatically — you close it yourself |
 
-侧栏用 Obsidian 原生 `leftSplit.expand()` / `collapse()` 展开收起 —— 不是 CSS 伪装，所以宽度、配色、内容布局和你手动打开时完全一致。
+The sidebar is opened and collapsed through Obsidian's own `leftSplit.expand()` / `collapse()` API — not faked with CSS — so its width, colours and content layout are exactly the same as when you open it yourself.
 
-另外把主题自带的「悬停显示功能区」也接过来用（主题文件保持原版不动，只覆盖一个 CSS 变量）。
+It also reuses the theme's built-in "hover to reveal the ribbon" behaviour (by overriding a single CSS variable, leaving your theme files untouched).
 
-## 安装
+## Installation
 
-手动安装：
+### Manual
 
-1. 下载本仓库的 `main.js` 与 `manifest.json`；
-2. 放进你的 vault 里的 `<vault>/.obsidian/plugins/arc-hover-sidebar/`；
-3. 在 vault 的 `.obsidian/community-plugins.json` 里加入 `"arc-hover-sidebar"`；
-4. 重新加载 Obsidian，在「设置 → 第三方插件」中启用它。
+1. Download `main.js` and `manifest.json` from this repository.
+2. Put them in `<vault>/.obsidian/plugins/arc-hover-sidebar/`.
+3. Add `"arc-hover-sidebar"` to `<vault>/.obsidian/community-plugins.json`.
+4. Reload Obsidian and enable the plugin under **Settings → Community plugins**.
 
-也可以用 [BRAT](https://github.com/TomG777/obsidian-brat) 安装：在 BRAT 里添加 `https://github.com/goodends/arc-hover-sidebar`。
+### BRAT
 
-## 设置
+[BRAT](https://github.com/TomG777/obsidian-brat) can install it from this repository: add
+`https://github.com/goodends/arc-hover-sidebar` in BRAT's plugin list.
 
-设置 → 第三方插件 → ARC Hover Sidebar：
+## Settings
 
-- **启用悬停侧栏** —— 总开关。关闭后插件完全不再干预侧边栏。
-- **统一开合方式** —— 开启后，用户自己打开的侧栏也由插件接管，关闭方式统一为「横向划出侧栏右边界」。
-- **同步功能区** —— 开启后，功能区（左侧图标栏）与侧边栏同时隐藏、同时展开。
+**Settings → Community plugins → ARC Hover Sidebar**
 
-## 可调参数（`main.js` 顶部与 getter）
+- **Enable hover sidebar** — master switch. When off, the plugin stops interfering with the sidebar entirely.
+- **Unified open/close** — when on, a sidebar you opened yourself is also managed by the plugin, and always closes the same way: swipe horizontally past the sidebar's right edge.
+- **Sync ribbon** — when on, the ribbon (the icon bar on the left) is hidden and shown together with the sidebar.
 
-| 参数 | 默认 | 含义 |
+## Tunable parameters (getters at the top of `main.js`)
+
+| Parameter | Default | Meaning |
 | --- | --- | --- |
-| `edgeZone` | 5px | 侧栏边缘触发区宽度 |
-| `ribbonTrigger` | 24px | 功能区触发带宽度（覆盖主题的 `--hover-sidedock-trigger-area`） |
-| `panelRight()` | 右边界 +12px | 判定「鼠标已滑出侧栏」的阈值，留 12px 余量方便拖拽把手 |
+| `edgeZone` | 5px | Width of the left-edge trigger zone |
+| `ribbonTrigger` | 24px | Width of the ribbon trigger band (overrides the theme's `--hover-sidedock-trigger-area`) |
+| `panelRight()` | right edge + 12px | Threshold for "the mouse has left the sidebar", with 12px of slack so the resize handle stays usable |
 
-## 实现要点
+## Implementation notes
 
-- **触发判定只有两条纯几何条件**，不看速度（与 ARC 一致）：
-  - 位置：鼠标进入窗口最左 `edgeZone` 像素
-  - 路径：本帧向左移动且移动路径经过该热区（覆盖一帧跨过热区的情况）
-- **单例保护**：加载时若发现旧实例残留，先卸载它。两个实例同时操作侧栏会让它反复开关（表现为闪烁）。
-- **冷启动保护**：`leftSplit` 在布局就绪前不存在，`onload` 里不能直接读 `.collapsed`，否则插件加载失败。
-- **轮询兜底**：`expand()` / `collapse()` 是异步生效的，展开完成前后可能不再有事件，用 400ms 轮询保证状态同步。
-- **拖拽保护**：拖动侧栏宽度把手期间不收起，否则宽度根本调不了。
-- **失焦保护**：窗口切到别的软件时收起侧栏，失焦期间不再响应悬停展开。
+- **The trigger is purely geometric** — no velocity check (like ARC):
+  - position: the mouse enters the leftmost `edgeZone` pixels of the window;
+  - path: this frame moved leftwards and the path crossed the trigger zone (covers the case where the mouse crosses the whole zone within a single frame).
+- **Singleton guard**: if a stale instance is still around when the plugin loads, it is unloaded first. Two instances fighting over the sidebar make it flicker open and closed.
+- **Cold-start guard**: `leftSplit` does not exist before the layout is ready, so `.collapsed` must not be read in `onload` — doing so throws and the plugin fails to load.
+- **Polling fallback**: `expand()` / `collapse()` take effect asynchronously and may not emit events around the transition, so a 400ms poll keeps the state in sync.
+- **Drag guard**: the sidebar is not collapsed while you are dragging its resize handle — otherwise you could never resize it.
+- **Blur guard**: switching to another application collapses the sidebar, and no hover expansion happens while the window is unfocused.
 
-## 已知取舍
+## Known trade-offs
 
-- 热区意味着鼠标只要在窗口左侧 `edgeZone` 内移动就会弹出侧栏。如果只是想去点功能区图标，侧栏会跟着冒出来 —— 调小 `edgeZone` 即可。
-- 触发区变大后，鼠标在左侧快速划过更容易误触发：这是热区与灵敏度之间的权衡。
-- 仅桌面端可用（`isDesktopOnly: true`）。
+- Any mouse movement within `edgeZone` of the left edge pops the sidebar out. If you only wanted to click a ribbon icon, the sidebar comes out too — reduce `edgeZone`.
+- A larger trigger zone means fast strokes near the left edge trigger it more easily: it is a trade-off between the hot zone and sensitivity.
+- Desktop only (`isDesktopOnly: true`).
 
-## 开发
+## Development
 
-没有构建步骤，`main.js` 就是全部逻辑。本地开发时把仓库里的 `main.js` / `manifest.json` 软链接到 `<vault>/.obsidian/plugins/arc-hover-sidebar/` 即可，改完在 Obsidian 里 disable → enable 插件生效。
+There is no build step — `main.js` is the entire plugin. For local development, symlink the repository's `main.js` and `manifest.json` into `<vault>/.obsidian/plugins/arc-hover-sidebar/`; changes take effect after disabling and re-enabling the plugin in Obsidian.
 
-开发约定见 [CLAUDE.md](CLAUDE.md)。
+Development conventions are described in [CLAUDE.md](CLAUDE.md).
 
-## 许可证
+## License
 
 [MIT](LICENSE)
