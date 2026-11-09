@@ -58,7 +58,43 @@ module.exports = class ArcHoverSidebar extends Plugin {
 		this.registerDomEvent(document, 'mouseup', () => {
 			this.dragging = false;
 		});
+		// 指针当前是否在窗口内。
+		// 用来区分两种情况：
+		//   窗口内从右往左划到边缘  → 应该展开
+		//   从窗口外往右滑进窗口     → 不应该展开
+		// 光看相邻两帧的方向不够：进入窗口的第一帧 prev 可能还是
+		// 上一次鼠标轨迹的残留坐标，方向会判断错。
+		this.pointerInside = true;
+		this.justEntered = false;
+		this.registerDomEvent(document, 'mouseleave', (e) => {
+			this.pointerInside = false;
+			// 滑动太快时，指针可能一帧内穿过整个热区直接滑出窗口，
+			// 窗口内就收不到「落在热区内」的 mousemove，于是漏判。
+			// 这里用 mouseleave 自带的坐标补判一次：
+			// 从左边缘滑出（clientX <= edgeZone）且此前在向左移动 → 视为划过热区。
+			if (
+				this.prevX !== null &&
+				e.clientX <= this.edgeZone &&
+				this.prevX > e.clientX
+			) {
+				this.expandByHover();
+			}
+			this.prevX = null;
+		});
+		this.registerDomEvent(document, 'mouseenter', () => {
+			this.pointerInside = true;
+			// 刚进入窗口，重新起步：prevX 清空、下一帧不参与方向判定
+			this.prevX = null;
+			this.justEntered = true;
+		});
 		this.registerEvent(this.app.workspace.on('layout-change', () => this.sync()));
+		// 切到别的软件（Cmd+Tab）时把侧边栏收回去，切回来时也保持收起。
+		// blur 是窗口级事件，focus 时清空指针状态，
+		// 避免切回来后鼠标正好停在左边缘时误判成「划入热区」。
+		this.registerDomEvent(window, 'blur', () => this.collapseAll());
+		this.registerDomEvent(window, 'focus', () => {
+			this.prevX = null;
+		});
 		// expand()/collapse() 是异步生效的，展开完成前后可能不再有事件，
 		// 用一个轻量轮询兜底，保证状态总能被同步到
 		this.syncTimer = window.setInterval(() => this.sync(), 400);
@@ -99,7 +135,7 @@ module.exports = class ArcHoverSidebar extends Plugin {
 
 	// 边缘触发区宽度：鼠标扫到窗口最左侧这么多像素即展开侧栏
 	get edgeZone() {
-		return 40;
+		return 5;
 	}
 
 	// 功能区（左侧图标栏）的触发带宽度，与主题的「悬停显示功能区」共用
@@ -176,12 +212,34 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		return !!document.querySelector('.modal-container');
 	}
 
+	// 由「鼠标向左划进热区」触发展开
+	expandByHover() {
+		const split = this.app.workspace.leftSplit;
+		if (!split || this.pinned) return;
+		// 用户自己打开的侧栏不接管
+		if (!split.collapsed) return;
+		this.pinned = true;
+		this.expandedByUs = true;
+		this.byHover = true;
+		this.pointerSide = 'in';
+		this.armed = false;
+		split.expand();
+	}
+
 	handleMove(e) {
 		const x = e.clientX;
 		const split = this.app.workspace.leftSplit;
 
 		// 布局尚未就绪时 leftSplit 还不存在
 		if (!split) return;
+
+		// 刚进入窗口的那一帧不参与方向判定：
+		// 进入瞬间 prev 还可能是上一段轨迹的残留坐标。
+		if (this.justEntered) {
+			this.justEntered = false;
+			this.prevX = x;
+			return;
+		}
 
 		// 有弹窗在前台时，取消悬停展开的效果：不再展开。
 		// 已经打开的侧栏保持原样，不去动它。
@@ -215,17 +273,12 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		if (!this.pinned) {
 			// 侧栏已经是打开状态时（用户自己打开的），不接管，避免把它误关
 			if (!split.collapsed) return;
-			// 快速划过时一帧可能直接跨过热区，所以按"路径"判断：
-			// 本帧向左移动且路径经过热区，即视为进入
-			const crossed =
-				prev > x && Math.min(prev, x) <= this.edgeZone && Math.max(prev, x) >= 0;
-			if (x <= this.edgeZone || crossed) {
-				this.pinned = true;
-				this.expandedByUs = true;
-				this.byHover = true;
-				this.pointerSide = 'in';
-				this.armed = false;
-				split.expand();
+			// 只在「从右往左」移动进热区时展开：
+			//   1. 指针确实在窗口内（从窗口外滑进来不算）
+			//   2. 本帧向左移动（prev > x）
+			//   3. 终点落在热区内（x <= edgeZone）
+			if (this.pointerInside && prev > x && x <= this.edgeZone) {
+				this.expandByHover();
 			}
 		} else if (x > this.panelRight()) {
 			// 越界是否收起，取决于侧栏是怎么打开的：
@@ -284,6 +337,21 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 				// 默认不管：用户自己开的侧栏保持展开，不被自动收起
 				this.pinned = false;
 			}
+		}
+	}
+
+	// 收起侧边栏并清空所有交互状态（窗口失焦时调用）
+	collapseAll() {
+		const split = this.app.workspace.leftSplit;
+		this.pinned = false;
+		this.expandedByUs = false;
+		this.byHover = false;
+		this.armed = false;
+		this.pointerSide = null;
+		this.prevX = null;
+		this.dragging = false;
+		if (split && !split.collapsed) {
+			split.collapse();
 		}
 	}
 
