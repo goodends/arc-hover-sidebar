@@ -400,6 +400,11 @@ class ArcHoverSidebarSettingTab extends PluginSettingTab {
 				toggle.setValue(this.plugin.settings.takeover).onChange(async (value) => {
 					this.plugin.settings.takeover = value;
 					await this.plugin.saveSettings();
+					// 开启后侧边栏统一由本插件管理，
+					// 先把它收起来，避免留在展开状态不受控。
+					if (value) {
+						this.plugin.collapseAll();
+					}
 				})
 			);
 
