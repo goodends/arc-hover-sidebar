@@ -1,0 +1,34 @@
+name: Attest release assets
+
+# 给每次发布的 release 资源生成 provenance 证明，
+# 让用户能验证下载到的 main.js / manifest.json 确实来自本仓库的源码。
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要生成证明的 release tag，例如 1.0.1'
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出发布版本
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+          path: release-assets
+
+      - name: 生成 provenance 证明
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release-assets/main.js
+            release-assets/manifest.json
