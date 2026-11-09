@@ -304,13 +304,14 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 		const prev = this.prevX === null ? x : this.prevX;
 
 		// 记录指针在侧栏内还是外（只对「用户打开后被接管」的侧栏有意义）：
-		//   从侧栏外滑回侧栏上 → armed（完成一次「进入」）
-		//   此后再滑出侧栏 → 才关闭
-		// 这样鼠标在侧栏外的区域可以自由活动，不会一动就收起。
+		//   指针在侧栏上 → armed（此时滑出侧栏即关闭）
+		//   指针在侧栏外 → 不 armed，鼠标在外面自由活动不会一动就收起。
+		// 注意：侧栏被快捷键打开的瞬间，鼠标可能本来就在侧栏上，
+		// 这种情况下第一次往右划出就应该收起，不能要求「先在外面待过」。
 		const right = this.rawRight();
 		if (!this.byHover) {
 			if (x <= right) {
-				if (this.pointerSide === 'out') this.armed = true;
+				this.armed = true;
 				this.pointerSide = 'in';
 			} else {
 				this.pointerSide = 'out';
