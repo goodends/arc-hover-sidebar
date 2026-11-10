@@ -6,7 +6,7 @@ An ARC-browser-style sidebar for Obsidian: **sweep the mouse to the left edge of
 
 ## Demo
 
-[▶ Watch the demo video](media/demo.mp4) — the sidebar sliding out when the mouse reaches the left edge, and sliding back when you swipe past its right edge.
+![The sidebar sliding out when the mouse reaches the left edge, and sliding back when you swipe past its right edge](media/demo.gif)
 
 ## What it does
 
