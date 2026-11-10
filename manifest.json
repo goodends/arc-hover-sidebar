@@ -1,7 +1,7 @@
 {
 	"id": "arc-hover-sidebar",
 	"name": "ARC Hover Sidebar",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "1.0.0",
 	"description": "An ARC-browser-style sidebar: sweep the mouse to the left edge of the window and the sidebar slides out, and it slides back when you swipe past its right edge.",
 	"author": "goodends",
