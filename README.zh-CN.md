@@ -39,7 +39,7 @@
 | --- | --- | --- |
 | `edgeZone` | 5px | 侧栏边缘触发区宽度 |
 | `ribbonTrigger` | 24px | 功能区触发带宽度（覆盖主题的 `--hover-sidedock-trigger-area`） |
-| `panelRight()` | 右边界 +24px | 判定「鼠标已滑出侧栏」的阈值，留 24px 余量方便拖拽把手 |
+| `panelRight()` | 右边界 +30px | 判定「鼠标已滑出侧栏」的阈值，留 30px 余量方便拖拽把手 |
 
 ## 实现要点
 

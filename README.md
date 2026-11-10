@@ -44,7 +44,7 @@ It also reuses the theme's built-in "hover to reveal the ribbon" behaviour (by o
 | --- | --- | --- |
 | `edgeZone` | 5px | Width of the left-edge trigger zone |
 | `ribbonTrigger` | 24px | Width of the ribbon trigger band (overrides the theme's `--hover-sidedock-trigger-area`) |
-| `panelRight()` | right edge + 24px | Threshold for "the mouse has left the sidebar", with 24px of slack so the resize handle stays usable |
+| `panelRight()` | right edge + 30px | Threshold for "the mouse has left the sidebar", with 30px of slack so the resize handle stays usable |
 
 ## Implementation notes
 

@@ -426,7 +426,7 @@ body.arc-sync-ribbon .workspace-tab-header-container {
 	// 侧栏右边界 + 一点余量，
 	// 让鼠标停在把手附近时不会立刻收起，方便拖拽调整宽度
 	panelRight() {
-		return this.rawRight() + 24;
+		return this.rawRight() + 30;
 	}
 };
 
